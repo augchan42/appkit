@@ -1,6 +1,12 @@
 {
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
   "editor.tabSize": 2,
   "editor.wordWrapColumn": 100,
   "eslint.validate": ["javascript", "javascriptreact", "typescript", "typescriptreact"],
@@ -20,5 +26,7 @@
   "typescript.tsdk": "node_modules/typescript/lib",
   "typescript.updateImportsOnFileMove.enabled": "always",
   "css.lint.unknownAtRules": "ignore",
-  "css.validate": true
+  "css.validate": true,
+  "prettier.requireConfig": true,
+  "prettier.useEditorConfig": false
 }

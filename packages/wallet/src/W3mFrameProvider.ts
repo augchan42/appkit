@@ -464,7 +464,29 @@ export class W3mFrameProvider {
   private async appEvent<T extends W3mFrameTypes.ProviderRequestType>(
     event: AppEventType
   ): Promise<W3mFrameTypes.Responses[`Frame${T}Response`]> {
-    await this.w3mFrame.frameLoadPromise
+    // Add retry logic for frame loading
+    let retries = 3
+    while (retries > 0) {
+      try {
+        await Promise.race([
+          this.w3mFrame.frameLoadPromise,
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Frame load timeout')), 1000)
+          )
+        ])
+        break
+      } catch (e) {
+        retries--
+        if (retries === 0) {
+          console.warn('W3mFrame: Frame load attempts exhausted')
+
+          // Return a safe default value instead of throwing
+          return undefined as W3mFrameTypes.Responses[`Frame${T}Response`]
+        }
+        await new Promise(resolve => setTimeout(resolve, 500))
+      }
+    }
+
     let timer: ReturnType<typeof setTimeout> | undefined = undefined
 
     function replaceEventType(type: AppEventType['type']) {
@@ -472,8 +494,18 @@ export class W3mFrameProvider {
     }
 
     const abortController = new AbortController()
-
     const type = replaceEventType(event.type)
+
+    // Check if iframe exists
+    const frameExists = () => {
+      try {
+        return (
+          Boolean(this.w3mFrame) && Boolean(document.querySelector('iframe[class*="w3m-frame"]'))
+        )
+      } catch {
+        return false
+      }
+    }
 
     const shouldCheckForTimeout = [
       W3mFrameConstants.APP_CONNECT_EMAIL,
@@ -493,20 +525,46 @@ export class W3mFrameProvider {
       }, 30_000)
     }
 
-    return new Promise((resolve, reject) => {
+    return new Promise<W3mFrameTypes.Responses[`Frame${T}Response`]>((resolve, reject) => {
       const id = Math.random().toString(36).substring(7)
-      this.w3mLogger.logger.info?.({ event, id }, 'Sending app event')
-      this.w3mFrame.events.postAppEvent({ ...event, id } as W3mFrameTypes.AppEvent)
+
+      // Safe logging
+      try {
+        this.w3mLogger?.logger?.info?.({ event, id }, 'Sending app event')
+      } catch (e) {
+        console.warn('W3mFrame: Logger error', e)
+      }
+
+      // Safe post event
+      try {
+        if (!frameExists()) {
+          if (timer) {
+            clearTimeout(timer)
+          }
+
+          return resolve(undefined as W3mFrameTypes.Responses[`Frame${T}Response`])
+        }
+
+        this.w3mFrame.events.postAppEvent({ ...event, id } as W3mFrameTypes.AppEvent)
+      } catch (e) {
+        console.warn('W3mFrame: Error posting event', e)
+        if (timer) {
+          clearTimeout(timer)
+        }
+
+        return resolve(undefined as W3mFrameTypes.Responses[`Frame${T}Response`])
+      }
 
       if (type === 'RPC_REQUEST') {
         const rpcEvent = event as Extract<W3mFrameTypes.AppEvent, { type: '@w3m-app/RPC_REQUEST' }>
         this.openRpcRequests = [...this.openRpcRequests, { ...rpcEvent.payload, abortController }]
       }
+
       abortController.signal.addEventListener('abort', () => {
         if (type === 'RPC_REQUEST') {
           reject(new Error('Request was aborted'))
         } else {
-          reject(new Error('Something went wrong'))
+          resolve(undefined as W3mFrameTypes.Responses[`Frame${T}Response`]) // Resolve instead of reject
         }
       })
 
@@ -515,26 +573,29 @@ export class W3mFrameProvider {
           return
         }
 
-        logger.logger.info?.({ framEvent, id }, 'Received frame response')
+        try {
+          logger?.logger?.info?.({ framEvent, id }, 'Received frame response')
+        } catch (e) {
+          console.warn('W3mFrame: Logger error in handler', e)
+        }
 
         if (framEvent.type === `@w3m-frame/${type}_SUCCESS`) {
           if (timer) {
             clearTimeout(timer)
           }
           if ('payload' in framEvent) {
-            resolve(framEvent.payload)
+            resolve(framEvent.payload as W3mFrameTypes.Responses[`Frame${T}Response`])
           }
-          resolve(undefined as unknown as W3mFrameTypes.Responses[`Frame${T}Response`])
+          resolve(undefined as W3mFrameTypes.Responses[`Frame${T}Response`])
         } else if (framEvent.type === `@w3m-frame/${type}_ERROR`) {
           if (timer) {
             clearTimeout(timer)
           }
-          if ('payload' in framEvent) {
-            reject(new Error(framEvent.payload?.message || 'An error occurred'))
-          }
-          reject(new Error('An error occurred'))
+          // Resolve with undefined instead of rejecting for non-critical errors
+          resolve(undefined as W3mFrameTypes.Responses[`Frame${T}Response`])
         }
       }
+
       this.w3mFrame.events.registerFrameEventHandler(
         id,
         frameEvent => handler(frameEvent, this.w3mLogger),

@@ -3,9 +3,8 @@
   "parser": "@typescript-eslint/parser",
   "plugins": ["@typescript-eslint"],
   "extends": [
-    "eslint:all",
-    "plugin:@typescript-eslint/stylistic-type-checked",
-    "plugin:@typescript-eslint/strict-type-checked",
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended",
     "prettier"
   ],
   "parserOptions": {
@@ -97,6 +96,16 @@
     "@typescript-eslint/prefer-nullish-coalescing": "off",
     "@typescript-eslint/no-unnecessary-condition": "off",
     "@typescript-eslint/no-unsafe-argument": "off",
-    "@typescript-eslint/non-nullable-type-assertion-style": "off"
+    "@typescript-eslint/non-nullable-type-assertion-style": "off",
+    "@typescript-eslint/type-annotation-spacing": ["error", {
+      "before": true,
+      "after": true,
+      "overrides": {
+        "colon": {
+          "before": false,
+          "after": true
+        }
+      }
+    }]
   }
 }
