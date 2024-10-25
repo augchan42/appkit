@@ -39,6 +39,9 @@
     "publish:canary": "pnpm install; pnpm build; changeset publish --tag canary",
     "prepare": "husky"
   },
+  "dependencies": {
+    "@reown/appkit": "github:augchan42/appkit"
+  },
   "devDependencies": {
     "@changesets/changelog-github": "0.5.0",
     "@changesets/cli": "2.27.9",
